@@ -15,17 +15,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Unpack project from zip (only if sources are inside an archive)
+      - name: Unpack the full project archive (if sources are inside a zip)
         run: |
           if ! find . -maxdepth 3 \( -name 'settings.gradle.kts' -o -name 'settings.gradle' \) -not -path './.git/*' | grep -q .; then
-            Z=./PyIDE_ready.zip
-            [ -f "$Z" ] || Z=$(ls ./*.zip 2>/dev/null | head -1)
-            if [ -z "$Z" ]; then
-              echo "::error::No Gradle project and no zip archive found in the repository"
+            FOUND=""
+            for Z in ./*.zip; do
+              [ -f "$Z" ] || continue
+              if unzip -l "$Z" | grep -qE 'settings\.gradle(\.kts)?$'; then
+                echo "Project archive: $Z"
+                unzip -o -q "$Z" -d _src
+                FOUND=1
+                break
+              else
+                echo "Skipping $Z: no settings.gradle inside, it is a patch and not a full project"
+              fi
+            done
+            if [ -z "$FOUND" ]; then
+              echo "::error::No full project archive found. Upload PyIDE_ready.zip to the repository root."
               exit 1
             fi
-            echo "Unpacking $Z"
-            unzip -o -q "$Z" -d _src
           fi
 
       - name: Locate Gradle project
